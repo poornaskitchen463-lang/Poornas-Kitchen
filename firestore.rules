@@ -1,0 +1,25 @@
+// Replace OWNER_EMAIL with the owner's login email in lowercase (e.g. abhay@example.com).
+// Or copy the ready-filled rules from the app: Manage → Team → Copy database rules.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null && request.auth.token.email != null; }
+    function me() { return request.auth.token.email.lower(); }
+    function isOwner() { return signedIn() && me() == 'OWNER_EMAIL'; }
+    function teamRole() {
+      return exists(/databases/$(database)/documents/team/$(me()))
+        ? get(/databases/$(database)/documents/team/$(me())).data.role : '';
+    }
+    function isManager() { return isOwner() || (signedIn() && teamRole() == 'manager'); }
+    function isStaff() { return isManager() || (signedIn() && teamRole() == 'staff'); }
+
+    match /team/{mail} {
+      allow read: if signedIn() && (isManager() || mail == me());
+      allow write: if isOwner();
+    }
+    match /{col}/{id} {
+      allow read, write: if (col in ['bookings', 'orders', 'bills'] && isStaff())
+        || (col in ['stock', 'suppliers', 'purchases', 'stockmoves', 'expenses'] && isManager());
+    }
+  }
+}

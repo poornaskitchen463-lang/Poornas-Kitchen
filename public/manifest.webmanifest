@@ -1,0 +1,24 @@
+{
+  "name": "Poorna's Kitchen",
+  "short_name": "Poorna's",
+  "description": "Table booking, orders, billing, stock and profit & loss for Poorna's Kitchen.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "background_color": "#FBF3E1",
+  "theme_color": "#1F4D35",
+  "categories": ["food", "business", "productivity"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Take an order", "url": "./#order", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Kitchen & billing", "url": "./#staff", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Dashboard", "url": "./#manage", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

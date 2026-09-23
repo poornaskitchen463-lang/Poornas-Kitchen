@@ -1,0 +1,30 @@
+{
+  "name": "poornas-kitchen-desktop",
+  "productName": "Poorna's Kitchen",
+  "version": "1.0.0",
+  "description": "Poorna's Kitchen — bookings, orders, billing, stock and P&L",
+  "main": "main.js",
+  "author": "Poorna's Kitchen",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:linux": "electron-builder --linux --publish never"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "in.poornaskitchen.app",
+    "productName": "Poorna's Kitchen",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "app-settings.json", "www/**/*"],
+    "mac": { "category": "public.app-category.business", "target": ["dmg", "zip"], "identity": null },
+    "win": { "target": ["nsis", "portable"] },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "shortcutName": "Poorna's Kitchen" },
+    "portable": { "artifactName": "Poornas-Kitchen-portable.exe" },
+    "linux": { "target": ["AppImage"], "category": "Office" }
+  }
+}
