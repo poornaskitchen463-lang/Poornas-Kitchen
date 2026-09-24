@@ -365,6 +365,19 @@ textarea.input{resize:vertical;min-height:72px}
 .lrow .input{padding:8px;font-size:14px}
 @media (max-width:480px){.lrow{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto}.lrow select{grid-column:1/-1}}
 .insights{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.mrow{display:grid;grid-template-columns:minmax(0,1fr) 110px auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.mrow:last-child{border-bottom:0}
+.mrow.off{opacity:.55}
+.mrow .nm{font-weight:600}
+.mrow .nm .tag{margin-left:6px;vertical-align:1px}
+.mrow .was{font-size:12px;color:var(--muted)}
+.pricebox{display:flex;align-items:center;border:1px solid var(--line);border-radius:9px;background:var(--surface);padding-left:9px}
+.pricebox span{color:var(--muted);font-size:14px}
+.pricebox input{border:0;background:transparent;width:100%;padding:7px 8px 7px 4px;font-family:var(--mono);font-size:14px;color:var(--ink);min-width:0}
+.pricebox input:focus{outline:none}
+.pricebox:focus-within{outline:2px solid var(--accent);border-color:transparent}
+.mrow .acts{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+@media (max-width:560px){.mrow{grid-template-columns:minmax(0,1fr) 96px}.mrow .acts{grid-column:1/-1;justify-content:flex-start}}
 #tip{position:fixed;z-index:60;pointer-events:none;background:var(--ink);color:var(--bg);padding:6px 10px;border-radius:8px;font-size:12.5px;white-space:pre-line;max-width:240px;box-shadow:var(--shadow);line-height:1.4}
 
 /* modal + toast */
@@ -579,6 +592,7 @@ textarea.input{resize:vertical;min-height:72px}
       <div><div class="eyebrow">Owner</div><h1 class="h1" style="font-size:clamp(26px,4vw,34px)">Manage</h1></div>
       <div class="seg" id="mg-sub">
         <button type="button" data-mg="dash" aria-pressed="true">Dashboard</button>
+        <button type="button" data-mg="menu" aria-pressed="false">Menu &amp; prices</button>
         <button type="button" data-mg="stock" aria-pressed="false">Stock &amp; suppliers</button>
         <button type="button" data-mg="exp" aria-pressed="false">Expenses</button>
         <button type="button" data-mg="pl" aria-pressed="false">Profit &amp; loss</button>
@@ -590,6 +604,15 @@ textarea.input{resize:vertical;min-height:72px}
     <div id="mg-dash">
       <div class="tools"><div class="seg" id="d-range"></div><span class="live" id="d-live">Live</span></div>
       <div id="d-body"></div>
+    </div>
+
+    <div id="mg-menu" hidden>
+      <div class="tools">
+        <input class="input" id="mm-q" placeholder="Search dishes" autocomplete="off">
+        <button class="btn primary" data-mact="adddish">+ Add new dish</button>
+      </div>
+      <p class="muted" style="margin:0 0 12px;font-size:13.5px">Type a new price and press Enter — it's live on every device at once. Bills already made keep the price they were charged at.</p>
+      <div id="mm-body"></div>
     </div>
 
     <div id="mg-stock" hidden>
@@ -672,7 +695,7 @@ const TABLES = [
   { id:"O1", cap:2, area:"outdoor" }, { id:"O2", cap:4, area:"outdoor" }, { id:"O3", cap:4, area:"outdoor" }
 ];
 /* Menu — prices in ₹. `s:1` marks seasonal dishes. */
-const MENU = [
+const BASE_MENU = [
   { cat:"Starters", items:[["Jim Jam Magic",25],["Smiley Balls",25],["Jaggery Bites",30],["Roasted Papad",25],["Masala Papad",60],["Kurkuri Bhendi",70]] },
   { cat:"Combos", items:[["Thalipith + Siders",110],["Aloo Paratha + Siders",110],["Gobi Paratha + Siders",110],["Palak Paratha + Siders",110],["Kids Combo (Puri, Bhaji & Frooti)",99],["Veg Pulao + Tomato Sar",140],["Khichadi + Kadhi + Papad",130],["Sabji + Paratha",100],["Masala Puri + Vidarbha Chatka",100]] },
   { cat:"Poorna's Kitchen Special", items:[["Mirchi Bhajii",170],["Bhandara Bhaji",170],["Gattyachi Bhaji",200],["Lal Bhoplyachi Bhaji",170],["Patodi Rassa",180],["Fanas (Jackfruit)",270,1]] },
@@ -710,8 +733,23 @@ const daysBetween = (a, b) => Math.round((parseD(b) - parseD(a)) / 86400000);
 const ago = ts => { const m = Math.max(0, Math.round((Date.now()-ts)/60000)); return m < 1 ? "just now" : m < 60 ? m + " min ago" : Math.floor(m/60) + " h " + (m%60) + " m ago"; };
 const clock = ts => { const d = new Date(ts); return t12(pad(d.getHours())+":"+pad(d.getMinutes())); };
 const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
-MENU.forEach(c => { c.id = slug(c.cat); c.items = c.items.map(([name, price, s]) => ({ id: slug(name), name, price, seasonal: !!s, cat: c.cat })); });
-const ITEM = Object.fromEntries(MENU.flatMap(c => c.items).map(i => [i.id, i]));
+BASE_MENU.forEach(c => { c.id = slug(c.cat); c.items = c.items.map(([name, price, s]) => ({ id: slug(name), name, price, seasonal: !!s, cat: c.cat })); });
+/* The live menu = your printed menu above + changes saved from Manage → Menu & prices (new prices, new dishes, sold out). */
+let MENU = BASE_MENU;
+let ITEM = Object.fromEntries(MENU.flatMap(c => c.items).map(i => [i.id, i]));
+function rebuildMenu(){
+  const ov = Object.fromEntries((store.menu || []).map(m => [m.id, m]));
+  const cats = BASE_MENU.map(c => ({ cat: c.cat, id: c.id, items: [] }));
+  const catOf = name => { let c = cats.find(x => x.cat === name); if (!c) { c = { cat: name, id: slug(name) || "other", items: [] }; cats.push(c); } return c; };
+  BASE_MENU.forEach(c => c.items.forEach(i => {
+    const o = ov[i.id] || {};
+    const it = { ...i, name: o.name || i.name, price: o.price != null ? +o.price : i.price, seasonal: o.seasonal != null ? !!o.seasonal : i.seasonal, hidden: !!o.hidden, cat: o.cat || c.cat, orig: { name: i.name, price: i.price, cat: c.cat }, changed: !!ov[i.id] };
+    catOf(it.cat).items.push(it);
+  }));
+  (store.menu || []).filter(o => o.custom).forEach(o => catOf(o.cat || "Specials").items.push({ id: o.id, name: o.name, price: +o.price || 0, seasonal: !!o.seasonal, hidden: !!o.hidden, cat: o.cat || "Specials", custom: true }));
+  MENU = cats.filter(c => c.items.length);
+  ITEM = Object.fromEntries(MENU.flatMap(c => c.items).map(i => [i.id, i]));
+}
 
 function allSlots(){
   const out = [];
@@ -729,7 +767,7 @@ function isPast(date, time){
 /* ============ store: shared live database when available, else this browser ============ */
 const store = { mode: "connecting", bookings: [], orders: [], bills: [] };
 let DB = null;
-const COLS = ["bookings","orders","bills","stock","suppliers","purchases","stockmoves","expenses"];
+const COLS = ["bookings","orders","bills","stock","suppliers","purchases","stockmoves","expenses","menu"];
 const LS = Object.fromEntries(COLS.map(c => [c, "pk-" + c + "-v2"]));
 COLS.forEach(c => store[c] ||= []);
 
@@ -851,9 +889,9 @@ function startLocal(){
   const got = {};
   for (const c of COLS) { try { got[c] = JSON.parse(localStorage.getItem(LS[c]) || "null"); } catch(e){ got[c] = null; } }
   const s = COLS.some(c => !Array.isArray(got[c])) ? sampleData() : null;
-  for (const c of COLS) store[c] = Array.isArray(got[c]) ? got[c] : s[c];
+  for (const c of COLS) store[c] = Array.isArray(got[c]) ? got[c] : (s[c] || []);
   store.mode = "local";
-  persist(); renderAll();
+  persist(); rebuildMenu(); renderMenu(); renderAll();
 }
 /* ---- standalone app: Firebase (Firestore live sync + email login) ---- */
 const FB_VER = "10.12.5";
@@ -885,6 +923,10 @@ service cloud.firestore {
     match /team/{mail} {
       allow read: if signedIn() && (isManager() || mail == me());
       allow write: if isOwner();
+    }
+    match /menu/{id} {
+      allow read: if isStaff();
+      allow write: if isManager();
     }
     match /{col}/{id} {
       allow read, write: if (col in ['bookings', 'orders', 'bills'] && isStaff())
@@ -948,7 +990,7 @@ async function initFirebase(cfg){
     if (!role) { session = { email, role: "" }; renderSession(); showAuth("norole", email); return; }
     session = { email, role }; $("#auth").hidden = true;
     mg.canManage = role === "owner" || role === "manager";
-    const cols = mg.canManage ? COLS : ["bookings", "orders", "bills"];
+    const cols = mg.canManage ? COLS : ["bookings", "orders", "bills", "menu"];
     COLS.forEach(c => store[c] = []);
     const got = {};
     for (const col of cols) {
@@ -958,7 +1000,10 @@ async function initFirebase(cfg){
         got[col] = true;
         if (cols.every(c => got[c])) store.mode = "shared";
         renderAll();
-      }, () => toast("Live updates stopped — check your connection and reopen the app.")));
+      }, () => {
+        if (col === "menu") { got.menu = true; store.menu = []; if (cols.every(c => got[c])) store.mode = "shared"; renderAll(); return; } // older database rules: use the printed menu
+        toast("Live updates stopped — check your connection and reopen the app.");
+      }));
     }
     if (role === "owner") unsubs.push(DB.collection("team").onSnapshot(s => { store.team = s.docs.map(d => ({ id: d.id, ...d.data() })); renderTeam(); }, () => {}));
     renderSession();
@@ -1092,6 +1137,7 @@ function setTab(t){
   for (const v of ["book","order","lookup","staff","manage"]) $("#view-" + v).hidden = t !== v;
   renderCartbar();
   if (t === "manage") renderManage();
+  if (t === "order") renderMenu();
   window.scrollTo(0, 0);
 }
 document.querySelector(".nav").addEventListener("click", e => { const b = e.target.closest("button[data-tab]"); if (b) setTab(b.dataset.tab); });
@@ -1207,7 +1253,7 @@ $("#o-phone").addEventListener("change", e => save("pk-ophone", e.target.value.t
 $("#o-table").addEventListener("change", e => { state.table = e.target.value; save("pk-table", state.table); $("#o-err") && ($("#o-err").textContent = ""); });
 $("#o-name").addEventListener("change", e => save("pk-oname", e.target.value.trim()));
 $("#o-q").addEventListener("input", e => { state.oq = e.target.value; renderMenu(); });
-$("#cats").innerHTML = MENU.map(c => `<button type="button" class="chip" data-cat="${c.id}">${esc(c.cat)}</button>`).join("");
+
 
 const cartCount = () => Object.values(state.cart).reduce((a,b)=>a+b,0);
 const cartTotal = () => Object.entries(state.cart).reduce((a,[id,q]) => a + (ITEM[id]?.price||0)*q, 0);
@@ -1216,7 +1262,12 @@ const qtyCtl = (id, q) => q ? `<span class="qty"><button type="button" data-dec=
 
 function renderMenu(){
   const q = state.oq.trim().toLowerCase();
-  const html = MENU.map(c => {
+  const visible = MENU.map(c => ({ ...c, items: c.items.filter(i => !i.hidden) })).filter(c => c.items.length);
+  $("#cats").innerHTML = visible.map(c => `<button type="button" class="chip" data-cat="${c.id}">${esc(c.cat)}</button>`).join("");
+  let dropped = false;
+  for (const id of Object.keys(state.cart)) if (!ITEM[id] || ITEM[id].hidden) { delete state.cart[id]; dropped = true; }
+  if (dropped) save("pk-cart", state.cart);
+  const html = visible.map(c => {
     const items = c.items.filter(i => !q || i.name.toLowerCase().includes(q) || c.cat.toLowerCase().includes(q));
     if (!items.length) return "";
     return `<section class="cat" id="cat-${c.id}"><h2>${esc(c.cat)}<span>${items.length} item${items.length>1?"s":""}</span></h2><div class="items">${items.map(i => {
@@ -1823,11 +1874,11 @@ function renderManage(){
   $("#mg-sub").hidden = !mg.canManage;
   $("#mg-sub").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mg === mg.sub)));
   if (mg.sub === "team" && !(session && session.role === "owner")) mg.sub = "dash";
-  for (const v of ["dash", "stock", "exp", "pl", "team"]) $("#mg-" + v).hidden = !mg.canManage || mg.sub !== v;
+  for (const v of ["dash", "menu", "stock", "exp", "pl", "team"]) $("#mg-" + v).hidden = !mg.canManage || mg.sub !== v;
   const low = store.stock.filter(s => s.qty <= s.reorder).length;
   const bdg = $("#mg-badge"); bdg.hidden = !low || !mg.canManage; bdg.textContent = low;
   if (!mg.canManage || state.tab !== "manage") return;
-  ({ dash: renderDash, stock: renderStock, exp: renderExp, pl: renderPL, team: renderTeam })[mg.sub]();
+  ({ dash: renderDash, menu: renderMenuEdit, stock: renderStock, exp: renderExp, pl: renderPL, team: renderTeam })[mg.sub]();
 }
 
 /* ---- dashboard ---- */
@@ -2209,6 +2260,96 @@ $("#e-month").max = mg.month; $("#p-month").max = mg.month;
 $("#e-month").addEventListener("change", () => { mg.delExp = null; renderExp(); });
 $("#p-month").addEventListener("change", renderPL);
 
+/* ============ MANAGE: menu & prices ============ */
+function menuOverride(id){ return store.menu.find(m => m.id === id); }
+async function saveMenuItem(id, patch){
+  const cur = menuOverride(id) || { id };
+  await putDoc("menu", { ...cur, ...patch, id, updatedAt: Date.now() });
+}
+function renderMenuEdit(){
+  const q = ($("#mm-q").value || "").trim().toLowerCase();
+  const all = MENU.flatMap(c => c.items);
+  const changed = all.filter(i => i.changed && !i.custom).length, added = all.filter(i => i.custom).length, off = all.filter(i => i.hidden).length;
+  const rows = c => c.items.filter(i => !q || i.name.toLowerCase().includes(q) || c.cat.toLowerCase().includes(q)).map(i => {
+    const tags = (i.custom ? '<span class="tag gold">New</span>' : "") + (i.seasonal ? '<span class="tag">Seasonal</span>' : "") + (i.hidden ? '<span class="tag" style="color:var(--bad)">Sold out</span>' : "");
+    const was = !i.custom && i.orig && i.orig.price !== i.price ? `<div class="was">Menu card price ${rs(i.orig.price)}</div>` : "";
+    return `<div class="mrow ${i.hidden ? "off" : ""}">
+      <div><div class="nm">${esc(i.name)}${tags}</div>${was}</div>
+      <label class="pricebox" for="pr-${i.id}"><span>₹</span><input id="pr-${i.id}" type="number" inputmode="decimal" min="0" step="1" value="${i.price}" data-price="${i.id}" aria-label="Price of ${esc(i.name)}"></label>
+      <div class="acts">
+        <button class="btn sm" data-mact="togglesold" data-id="${i.id}">${i.hidden ? "Available again" : "Sold out"}</button>
+        <button class="btn sm" data-mact="editdish" data-id="${i.id}">Edit</button>
+        ${i.custom ? `<button class="btn sm danger" data-mact="deldish" data-id="${i.id}">Remove</button>` : i.changed ? `<button class="btn sm" data-mact="resetdish" data-id="${i.id}" title="Back to the printed menu card">Reset</button>` : ""}
+      </div></div>`;
+  }).join("");
+  const body = MENU.map(c => { const r = rows(c); return r ? `<div class="grp">${esc(c.cat)}</div>${r}` : ""; }).join("");
+  $("#mm-body").innerHTML = `
+    <div class="kpis">
+      ${kpi("Dishes on menu", all.filter(i => !i.hidden).length, `<span class="d muted">${all.length} in total</span>`)}
+      ${kpi("New dishes added", added, "")}
+      ${kpi("Dishes changed", changed, `<span class="d muted">price, name or category</span>`)}
+      ${kpi("Sold out now", off, off ? `<span class="d down">hidden from ordering</span>` : `<span class="d up">everything available</span>`)}
+    </div>
+    <div class="card">${body || `<p class="muted">No dish matches “${esc(q)}”.</p>`}</div>`;
+}
+function openDish(id){
+  const it = id ? ITEM[id] : null;
+  const cats = [...new Set(MENU.map(c => c.cat))];
+  openModal(`<div><div class="eyebrow">Menu</div><h2 class="h2" style="margin:4px 0 0">${it ? "Edit " + esc(it.name) : "Add a new dish"}</h2></div>
+    <label class="f" for="dn-name">Dish name<input class="input" id="dn-name" value="${esc(it ? it.name : "")}" placeholder="e.g. Sabudana Khichadi"></label>
+    <div class="grid2">
+      <label class="f" for="dn-price">Price (₹)<input class="input mono" id="dn-price" type="number" min="0" step="1" value="${it ? it.price : ""}"></label>
+      <label class="f" for="dn-cat">Category<select class="input" id="dn-cat">${cats.map(c => `<option ${it && it.cat === c ? "selected" : ""}>${esc(c)}</option>`).join("")}<option value="__new">+ New category…</option></select></label>
+    </div>
+    <label class="f" for="dn-newcat" id="dn-newcat-wrap" hidden>New category name<input class="input" id="dn-newcat" placeholder="e.g. Today's Specials"></label>
+    <label class="row" for="dn-seas" style="font-size:14px;gap:8px"><input type="checkbox" id="dn-seas" ${it && it.seasonal ? "checked" : ""}> Seasonal dish</label>
+    <div class="err" id="dn-err" role="alert"></div>
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-close>Cancel</button><button type="button" class="btn primary" id="dn-save">${it ? "Save changes" : "Add to menu"}</button></div>`);
+  if (!it) { const sel = $("#dn-cat"); const sp = [...sel.options].find(o => o.value === "Poorna's Kitchen Special"); if (sp) sel.value = sp.value; }
+  $("#dn-cat").addEventListener("change", e => { $("#dn-newcat-wrap").hidden = e.target.value !== "__new"; if (e.target.value === "__new") $("#dn-newcat").focus(); });
+  $("#dn-name").focus();
+  $("#dn-save").addEventListener("click", async () => {
+    const name = $("#dn-name").value.trim(), price = Math.round(+$("#dn-price").value * 100) / 100;
+    const cat = $("#dn-cat").value === "__new" ? $("#dn-newcat").value.trim() : $("#dn-cat").value;
+    const err = $("#dn-err");
+    if (name.length < 2) { err.textContent = "Enter the dish name."; return; }
+    if (!(price > 0)) { err.textContent = "Enter a price above ₹0."; return; }
+    if (!cat) { err.textContent = "Type the new category name."; return; }
+    const dup = Object.values(ITEM).find(x => x.name.toLowerCase() === name.toLowerCase() && x.id !== id);
+    if (dup) { err.textContent = `“${dup.name}” is already on the menu — edit that one instead.`; return; }
+    try {
+      if (it) await saveMenuItem(id, { name, price, cat, seasonal: $("#dn-seas").checked, ...(it.custom ? { custom: true } : {}) });
+      else await putDoc("menu", { id: "c-" + (slug(name) || "dish") + "-" + Math.random().toString(36).slice(2, 6), custom: true, name, price, cat, seasonal: $("#dn-seas").checked, hidden: false, createdAt: Date.now(), updatedAt: Date.now() });
+      closeM(); toast(it ? `${name} updated` : `${name} added to the menu at ${rs(price)}`);
+    } catch (e) { err.textContent = "Couldn't save — check your connection and try again."; }
+  });
+}
+$("#mm-q").addEventListener("input", renderMenuEdit);
+$("#mg-menu").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.dataset.price) e.target.blur(); });
+$("#mg-menu").addEventListener("change", async e => {
+  const id = e.target.dataset.price; if (!id || !ITEM[id]) return;
+  const v = Math.round(+e.target.value * 100) / 100, it = ITEM[id];
+  if (!(v > 0)) { toast("Price must be above ₹0"); e.target.value = it.price; return; }
+  if (v === it.price) return;
+  try {
+    if (!it.custom && it.orig && v === it.orig.price && !it.hidden && it.name === it.orig.name && it.cat === it.orig.cat) await delDoc("menu", id);
+    else await saveMenuItem(id, { price: v, ...(it.custom ? { custom: true, name: it.name, cat: it.cat } : {}) });
+    toast(`${it.name}: now ${rs(v)}`);
+  } catch (err) { toast("Couldn't save the price — try again."); e.target.value = it.price; }
+});
+$("#mg-menu").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const a = b.dataset.mact, id = b.dataset.id, it = ITEM[id];
+  if (a === "adddish") openDish(null);
+  else if (a === "editdish") openDish(id);
+  else if (a === "togglesold" && it) { try { await saveMenuItem(id, { hidden: !it.hidden, ...(it.custom ? { custom: true, name: it.name, price: it.price, cat: it.cat } : {}) }); toast(it.hidden ? `${it.name} is available again` : `${it.name} marked sold out`); } catch (err) { toast("Couldn't update — try again."); } }
+  else if (a === "resetdish" && it) { try { await delDoc("menu", id); toast(`${it.orig.name} is back to the menu card (${rs(it.orig.price)})`); } catch (err) { toast("Couldn't reset — try again."); } }
+  else if (a === "deldish" && it) {
+    if (b.dataset.sure) { try { await delDoc("menu", id); toast(`${it.name} removed`); } catch (err) { toast("Couldn't remove — try again."); } }
+    else { b.dataset.sure = "1"; b.textContent = "Tap again to remove"; }
+  }
+});
+
 /* ============ misc ============ */
 let toastTimer;
 function toast(msg){ const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 2600); }
@@ -2218,12 +2359,13 @@ function copyText(text, okMsg){
   catch(e) { fail(); }
 }
 function renderAll(){
+  rebuildMenu(); if (state.tab === "order" || !$("#menu").innerHTML) renderMenu();
   renderBook(); renderStaff(); renderLookup(); renderMyOrders(); renderCartbar(); renderManage();
   const sheet = $("#cart-sheet"); if (!sheet) renderCart();
 }
 
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost") && !window.claude) navigator.serviceWorker.register("sw.js").catch(() => {});
-renderMenu(); renderCart();
+rebuildMenu(); renderMenu(); renderCart();
 setTab(state.tab);
 initStore();
 setInterval(() => { if (state.tab === "book") renderBook(); if (state.tab === "staff" && state.staff.sub === "kitchen") renderKitchen(); }, 60000);
