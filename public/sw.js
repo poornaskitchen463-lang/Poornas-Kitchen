@@ -1,6 +1,6 @@
 /* Poorna's Kitchen service worker — makes the app installable and open instantly, even on a weak connection.
    Live data sync is handled by Firebase (it keeps its own offline copy). Bump VERSION after changing app files. */
-const VERSION = "pk-v1";
+const VERSION = "pk-v2";
 const SHELL = ["./", "index.html", "firebase-config.js", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png", "icons/apple-touch-icon.png", "icons/favicon-32.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
