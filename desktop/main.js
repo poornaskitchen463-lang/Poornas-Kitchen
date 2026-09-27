@@ -15,13 +15,14 @@ async function createWindow() {
     width: 1320, height: 880, minWidth: 380, minHeight: 600,
     title: "Poorna's Kitchen", backgroundColor: "#FBF3E1", autoHideMenuBar: true,
     icon: path.join(__dirname, "build", "icon.png"),
-    webPreferences: { contextIsolation: true, sandbox: true }
+    webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false, autoplayPolicy: "no-user-gesture-required" }
   });
   const local = () => win.loadFile(path.join(__dirname, "www", "index.html"));
   if (settings.appUrl && await reachable(settings.appUrl)) win.loadURL(settings.appUrl).catch(local);
   else local();
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: "deny" }; });
 }
+app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 app.whenReady().then(() => {
   createWindow();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

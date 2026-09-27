@@ -1,7 +1,7 @@
 {
   "name": "poornas-kitchen-desktop",
   "productName": "Poorna's Kitchen",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Poorna's Kitchen — bookings, orders, billing, stock and P&L",
   "main": "main.js",
   "author": "Poorna's Kitchen",
@@ -19,12 +19,51 @@
   "build": {
     "appId": "in.poornaskitchen.app",
     "productName": "Poorna's Kitchen",
-    "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "app-settings.json", "www/**/*"],
-    "mac": { "category": "public.app-category.business", "target": ["dmg", "zip"], "identity": null },
-    "win": { "target": ["nsis", "portable"] },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "shortcutName": "Poorna's Kitchen" },
-    "portable": { "artifactName": "Poornas-Kitchen-portable.exe" },
-    "linux": { "target": ["AppImage"], "category": "Office" }
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "app-settings.json",
+      "www/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.business",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "identity": null,
+      "artifactName": "Poornas-Kitchen-Mac.dmg"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Poornas-Kitchen-Windows-Setup.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Poorna's Kitchen",
+      "artifactName": "Poornas-Kitchen-Windows-Setup.exe"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Office"
+    }
   }
 }
