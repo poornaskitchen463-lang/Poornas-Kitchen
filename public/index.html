@@ -534,6 +534,7 @@ textarea.input{resize:vertical;min-height:72px}
         <button type="button" data-sub="billing" aria-pressed="false">Billing</button>
         <button type="button" data-sub="customers" aria-pressed="false">Customers</button>
       </div>
+      <button type="button" class="btn sm" id="snd-btn" title="Play a sound for new orders and ready orders">🔔 Sound on</button>
     </div>
 
     <div id="staff-tables">
@@ -2358,7 +2359,58 @@ function copyText(text, okMsg){
   try { navigator.clipboard.writeText(text).then(() => toast(okMsg || "Copied " + text), fail); }
   catch(e) { fail(); }
 }
+/* ============ ORDER SOUNDS: new order punched + order ready ============ */
+const SND = { on: load("pk-sound", true), ctx: null, seen: new Map(), started: Date.now() };
+function audio(){
+  if (!SND.ctx) { const A = window.AudioContext || window.webkitAudioContext; if (!A) return null; SND.ctx = new A(); }
+  if (SND.ctx.state === "suspended") SND.ctx.resume().catch(() => {});
+  return SND.ctx;
+}
+function tone(ctx, freq, start, dur, vol = 0.35, type = "sine"){
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, start); g.gain.exponentialRampToValueAtTime(vol, start + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  o.connect(g).connect(ctx.destination); o.start(start); o.stop(start + dur + 0.05);
+}
+function playSound(kind){
+  if (!SND.on) return;
+  const ctx = audio(); if (!ctx) return;
+  const t = ctx.currentTime + 0.05;
+  if (kind === "new") { // ding-dong, twice — "new order punched"
+    [0, 0.9].forEach(d => { tone(ctx, 988, t + d, 0.6, 0.4); tone(ctx, 1976, t + d, 0.3, 0.08); tone(ctx, 784, t + d + 0.3, 0.8, 0.4); tone(ctx, 1568, t + d + 0.3, 0.4, 0.08); });
+    try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch(e){}
+  } else { // bright rising chime — "order ready"
+    [523, 659, 784, 1047].forEach((f, i) => { tone(ctx, f, t + i * 0.14, 0.7, 0.35, "triangle"); });
+    tone(ctx, 1047, t + 0.7, 0.9, 0.25);
+    try { navigator.vibrate && navigator.vibrate([120, 60, 120, 60, 300]); } catch(e){}
+  }
+}
+function checkOrderSounds(){
+  const firstPass = SND.seen.size === 0 && store.mode === "connecting";
+  let isNew = null, isReady = null;
+  for (const o of store.orders) {
+    const prev = SND.seen.get(o.id);
+    if (prev === undefined) {
+      // a brand-new order that appeared while the app is open (not old orders loading at start-up)
+      if (!firstPass && o.status === "new" && !o.sample && (o.createdAt || 0) > SND.started - 5000 && Date.now() - (o.createdAt || 0) < 10 * 60000) isNew = o;
+    } else if (prev !== o.status && o.status === "ready") isReady = o;
+    SND.seen.set(o.id, o.status);
+  }
+  const where = o => o.table === "PARCEL" ? "Parcel" : "Table " + o.table;
+  if (isNew) { playSound("new"); toast(`🔔 New order — ${where(isNew)} · ${isNew.items.reduce((a,i)=>a+i.qty,0)} items`); }
+  else if (isReady) { playSound("ready"); toast(`✅ Order ready — ${where(isReady)} (${isReady.code})`); }
+}
+function renderSoundBtn(){ const b = $("#snd-btn"); if (b) { b.textContent = SND.on ? "🔔 Sound on" : "🔕 Sound off"; b.setAttribute("aria-pressed", String(SND.on)); } }
+// browsers only allow sound after the first tap — unlock audio on any tap
+["pointerdown","keydown","touchstart"].forEach(ev => document.addEventListener(ev, () => { if (SND.on) audio(); }, { passive: true }));
+document.addEventListener("click", e => {
+  if (!e.target.closest("#snd-btn")) return;
+  SND.on = !SND.on; save("pk-sound", SND.on); renderSoundBtn();
+  if (SND.on) { playSound("new"); toast("Sound on — you'll hear new orders and ready orders"); } else toast("Sound off on this device");
+});
+
 function renderAll(){
+  checkOrderSounds(); renderSoundBtn();
   rebuildMenu(); if (state.tab === "order" || !$("#menu").innerHTML) renderMenu();
   renderBook(); renderStaff(); renderLookup(); renderMyOrders(); renderCartbar(); renderManage();
   const sheet = $("#cart-sheet"); if (!sheet) renderCart();
