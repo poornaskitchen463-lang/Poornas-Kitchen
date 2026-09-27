@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -52,6 +52,8 @@ jobs:
           npx cap add android
           npx @capacitor/assets generate --android --iconBackgroundColor '#1F4D35' --iconBackgroundColorDark '#1F4D35' --splashBackgroundColor '#FBF3E1' --splashBackgroundColorDark '#111712' || echo "icon generation skipped"
           npx cap sync android
+          # same signing key every build, so a new APK installs as an update over the old one
+          mkdir -p ~/.android && cp debug.keystore ~/.android/debug.keystore
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
@@ -103,6 +105,34 @@ jobs:
           name: Poornas-Kitchen-${{ matrix.name }}
           path: |
             desktop/dist/*.dmg
-            desktop/dist/*.zip
             desktop/dist/*.exe
           if-no-files-found: warn
+
+  # Puts the newest apps on one public Downloads page (no GitHub login needed):
+  # https://github.com/<owner>/<repo>/releases/tag/apps
+  release:
+    name: Publish downloads
+    needs: [android, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dl
+          merge-multiple: true
+      - run: ls -la dl
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apps
+          name: "Poorna's Kitchen — latest apps"
+          make_latest: true
+          body: |
+            Latest Poorna's Kitchen apps (built ${{ github.event.head_commit.timestamp }}).
+            • Android phone / tablet: PoornasKitchen.apk
+            • Windows laptop: Poornas-Kitchen-Windows-Setup.exe
+            • Mac: Poornas-Kitchen-Mac.dmg
+            • iPhone / iPad: open https://poornaskitchen463-lang.github.io/Poornas-Kitchen/ in Safari → Share → Add to Home Screen
+          files: |
+            dl/PoornasKitchen.apk
+            dl/Poornas-Kitchen-Windows-Setup.exe
+            dl/Poornas-Kitchen-Mac.dmg
+          fail_on_unmatched_files: false
